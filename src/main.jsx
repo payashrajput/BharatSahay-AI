@@ -62,7 +62,7 @@ import './styles.css';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost:4021';
+  'https://bharatsahay-ai.onrender.com/';
 
 
 // Always use the SDK's canonical Algorand TestNet CAIP-2 value.
