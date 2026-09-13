@@ -24,7 +24,11 @@ import {
   LayoutDashboard,
   Wallet,
   Zap,
-  ExternalLink
+  ExternalLink,
+  Moon,
+  Sun,
+  MessageSquare,
+  Star
 } from 'lucide-react';
 
 import {
@@ -58,7 +62,7 @@ import './styles.css';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  window.location.origin;
+  'http://localhost:4021';
 
 
 // Always use the SDK's canonical Algorand TestNet CAIP-2 value.
@@ -646,6 +650,55 @@ export default function App() {
     message,
     setMessage
   ] = useState('');
+
+  const [
+    darkMode,
+    setDarkMode
+  ] = useState(() => {
+    try {
+      return localStorage.getItem('bharatsahay-theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+
+  const [
+    feedbackOpen,
+    setFeedbackOpen
+  ] = useState(false);
+
+  const [
+    feedback,
+    setFeedback
+  ] = useState({
+    rating: 0,
+    type: 'Suggestion',
+    message: ''
+  });
+
+  useEffect(() => {
+    document.body.classList.toggle('dark-theme', darkMode);
+    try {
+      localStorage.setItem('bharatsahay-theme', darkMode ? 'dark' : 'light');
+    } catch {}
+  }, [darkMode]);
+
+  const submitFeedback = () => {
+    if (!feedback.message.trim() && !feedback.rating) {
+      setMessage('Please add a rating or feedback before submitting.');
+      return;
+    }
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('bharatsahay-feedback') || '[]');
+      existing.push({ ...feedback, createdAt: new Date().toISOString() });
+      localStorage.setItem('bharatsahay-feedback', JSON.stringify(existing));
+    } catch {}
+
+    setFeedbackOpen(false);
+    setFeedback({ rating: 0, type: 'Suggestion', message: '' });
+    setMessage('Thanks! Your feedback will help shape future BharatSahay updates.');
+  };
 
   useEffect(() => {
 
@@ -1412,6 +1465,24 @@ export default function App() {
 
 
         <div className="nav-actions">
+
+          <button
+            className="icon-button"
+            onClick={() => setDarkMode(prev => !prev)}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+
+          <button
+            className="feedback-nav-button"
+            onClick={() => setFeedbackOpen(true)}
+            title="Send feedback"
+          >
+            <MessageSquare size={16} />
+            Feedback
+          </button>
 
           <button
             className="language-button"
@@ -2780,10 +2851,82 @@ export default function App() {
             Algorand TestNet
           </span>
 
+          <button
+            className="footer-feedback"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <MessageSquare size={13} />
+            Send feedback
+          </button>
+
         </div>
 
       </footer>
 
+
+      {feedbackOpen && (
+        <div className="modal-overlay" onClick={() => setFeedbackOpen(false)}>
+          <div className="modal feedback-modal" onClick={event => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <span className="eyebrow">HELP US IMPROVE</span>
+                <h2>Share your feedback</h2>
+              </div>
+              <button className="close-button" onClick={() => setFeedbackOpen(false)} aria-label="Close feedback">×</button>
+            </div>
+
+            <p>Your feedback helps us improve BharatSahay and decide what to build in future updates.</p>
+
+            <div className="feedback-rating">
+              <span>How was your experience?</span>
+              <div className="star-row" role="radiogroup" aria-label="Rating">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    type="button"
+                    className={feedback.rating >= star ? 'star-button active' : 'star-button'}
+                    onClick={() => setFeedback(prev => ({ ...prev, rating: star }))}
+                    aria-label={`${star} star${star > 1 ? 's' : ''}`}
+                  >
+                    <Star size={24} fill="currentColor" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="feedback-types">
+              {['Suggestion', 'Bug report', 'Feature request', 'Other'].map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  className={feedback.type === type ? 'feedback-type active' : 'feedback-type'}
+                  onClick={() => setFeedback(prev => ({ ...prev, type }))}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <label className="feedback-field">
+              <span>What should we improve?</span>
+              <textarea
+                rows="5"
+                value={feedback.message}
+                onChange={event => setFeedback(prev => ({ ...prev, message: event.target.value }))}
+                placeholder="Tell us what worked, what did not, or what you want next..."
+              />
+            </label>
+
+            <div className="modal-actions">
+              <button className="secondary-button" onClick={() => setFeedbackOpen(false)}>Cancel</button>
+              <button className="primary-button" onClick={submitFeedback}>
+                <MessageSquare size={16} />
+                Submit feedback
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SchemeModal />
 
