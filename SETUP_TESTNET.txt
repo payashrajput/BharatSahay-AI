@@ -1,0 +1,29 @@
+BHARATSAHAY - ALGOrand TESTNET SETUP
+
+1. Open server/.env
+2. Replace:
+   AVM_ADDRESS=YOUR_ALGORAND_TESTNET_RECEIVER_ADDRESS
+   with your PUBLIC Algorand TestNet wallet address.
+3. NEVER put a seed phrase/private key in server/.env.
+4. Keep the other server/.env values unchanged for local testing.
+5. Install:
+   npm install
+6. Check x402:
+   npm run check:x402
+7. Start backend:
+   npm run server
+8. Open http://localhost:4021/api/health
+   Confirm payToConfigured is true.
+9. In a second terminal:
+   npm run dev
+10. Open the Vite URL, normally http://localhost:5173
+11. Connect Pera Wallet on Algorand TestNet.
+12. Fund the payer wallet with TestNet ALGO for fees and the TestNet USDC asset expected by @x402/avm.
+13. Use BharatSahay and click "Pay $0.01 & unlock insight".
+14. Approve the transaction in Pera.
+15. Verify the resulting transaction in the Algorand TestNet explorer.
+
+IMPORTANT:
+- server/.env is included as a template only; you MUST edit AVM_ADDRESS.
+- Do not commit server/.env to GitHub. The .gitignore should exclude .env.
+- This project is configured for Algorand TestNet (chain ID 416002 / CAIP-2 used by @x402/avm).

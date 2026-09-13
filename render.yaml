@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: bharatsahay-x402
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: AVM_ADDRESS
+        sync: false
+      - key: FACILITATOR_URL
+        value: https://facilitator.goplausible.xyz
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_ORIGIN
+        sync: false
