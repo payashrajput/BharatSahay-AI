@@ -304,3 +304,28 @@ body.dark-theme .profile-page {
     color:#0a1b38;
   }
 }
+
+
+.card-heading-title{display:flex;align-items:center;gap:9px}
+.card-heading-title h3{margin:0}
+.document-clear-button{border:0;background:transparent;color:#667085;font-size:.72rem;font-weight:800;cursor:pointer;padding:7px 9px;border-radius:8px}
+.document-clear-button:hover{background:#f2f4f7;color:#101828}
+.document-preview-wrap{display:flex;flex-direction:column;gap:12px}
+.document-preview{height:300px;border:1px solid #e4e7ec;border-radius:14px;overflow:hidden;background:#f7f9fc;display:grid;place-items:center}
+.document-pdf-preview{width:100%;height:100%;border:0;background:#fff}
+.document-image-preview{display:block;width:100%;height:100%;object-fit:contain;padding:10px}
+.document-preview-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #eaecf0;border-radius:11px;background:#fafbfc}
+.document-preview-meta>div{min-width:0;display:flex;flex-direction:column;gap:3px}
+.document-preview-meta strong{font-size:.76rem;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.document-preview-meta span{font-size:.68rem;color:#667085}
+.document-open-button{padding:8px 11px;border-radius:9px;background:var(--navy);color:#fff;text-decoration:none;font-size:.7rem;font-weight:800;flex:0 0 auto}
+.extraction-results{margin-top:16px;padding-top:14px;border-top:1px solid #eef0f3}
+.extraction-label{font-size:.68rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--blue);margin-bottom:2px}
+.prototype-disclaimer{display:block;margin-top:10px;color:#98a2b3;font-size:.65rem;line-height:1.5}
+@media (max-width:760px){
+  .document-preview{height:240px}
+  .document-grid{grid-template-columns:1fr!important}
+}
+
+
+.extraction-progress{height:7px;background:#eef2f6;border-radius:999px;overflow:hidden;margin-top:9px}.extraction-progress span{display:block;height:100%;background:currentColor;border-radius:999px;transition:width .2s ease}.ocr-text-details{margin-top:12px;font-size:.72rem}.ocr-text-details summary{cursor:pointer;color:#475467;font-weight:700}.ocr-text-details pre{margin:8px 0 0;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-word;padding:10px;border:1px solid #eaecf0;border-radius:10px;background:#fafbfc;color:#344054;font:inherit;line-height:1.5}

@@ -62,7 +62,7 @@ import './styles.css';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  'https://bharatsahay-ai.onrender.com/';
+  'http://localhost:4021';
 
 
 // Always use the SDK's canonical Algorand TestNet CAIP-2 value.
@@ -606,9 +606,36 @@ export default function App() {
 
 
   const [
+    documentPreviewUrl,
+    setDocumentPreviewUrl
+  ] = useState('');
+
+
+  useEffect(() => {
+    return () => {
+      if (documentPreviewUrl) {
+        URL.revokeObjectURL(documentPreviewUrl);
+      }
+    };
+  }, [documentPreviewUrl]);
+
+
+  const [
     extractedData,
     setExtractedData
   ] = useState(null);
+
+
+  const [
+    ocrBusy,
+    setOcrBusy
+  ] = useState(false);
+
+
+  const [
+    ocrError,
+    setOcrError
+  ] = useState('');
 
 
   const [
@@ -879,44 +906,138 @@ export default function App() {
     ]);
 
 
-  const handleDocumentUpload =
-    event => {
+  const runDocumentOCR = async file => {
 
-      const file =
-        event.target.files?.[0];
+    if (!window.Tesseract) {
+      throw new Error('OCR engine could not be loaded. Check your internet connection and reload the page.');
+    }
 
-      if (!file) {
-        return;
+    const imageFromPDF = async pdfFile => {
+      if (!window.pdfjsLib) {
+        throw new Error('PDF preview engine could not be loaded. Reload the page and try again.');
       }
 
-      setUploadedFile(
-        file
-      );
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const buffer = await pdfFile.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+      const pages = Math.min(pdf.numPages, 3);
+      const canvases = [];
 
-      setExtractedData({
-        document:
-          file.name,
+      for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const viewport = page.getViewport({ scale: 1.6 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        canvases.push(canvas);
+      }
+      return canvases;
+    };
 
-        fields: {
-          name:
-            profile.name ||
-            'Detected Name',
-
-          income:
-            profile.income
-              ? `₹${Number(profile.income).toLocaleString('en-IN')}`
-              : 'Detected Income',
-
-          date:
-            new Date().toLocaleDateString('en-IN')
+    const worker = await window.Tesseract.createWorker('eng', 1, {
+      logger: message => {
+        if (message.status === 'recognizing text' && Number.isFinite(message.progress)) {
+          setExtractedData(current => current ? { ...current, progress: Math.round(message.progress * 100) } : current);
         }
-      });
+      }
+    });
 
-      setMessage(
-        'Document uploaded. Extraction preview generated.'
-      );
+    try {
+      let text = '';
+
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        const canvases = await imageFromPDF(file);
+        for (let i = 0; i < canvases.length; i += 1) {
+          const result = await worker.recognize(canvases[i]);
+          text += `\n[Page ${i + 1}]\n${result.data.text}`;
+        }
+      } else {
+        const result = await worker.recognize(file);
+        text = result.data.text;
+      }
+
+      const clean = text.replace(/\s+/g, ' ').trim();
+      const nameMatch = clean.match(/(?:name|नाम)\s*[:\-]?\s*([A-Za-z][A-Za-z .'-]{2,60}?)(?=\s+(?:father|father's|dob|date|address|income|mobile|gender|$))/i);
+      const incomeMatch = clean.match(/(?:annual\s+income|yearly\s+income|income|वार्षिक\s*आय|आय)\s*[:\-₹Rs.\s]*([0-9][0-9,]*(?:\.\d+)?)/i);
+
+      const name = nameMatch ? nameMatch[1].trim().replace(/\s{2,}/g, ' ') : 'Not detected';
+      const income = incomeMatch ? `₹${incomeMatch[1].replace(/,/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : 'Not detected';
+
+      return {
+        fields: { name, income },
+        rawText: text.trim(),
+        progress: 100
+      };
+    } finally {
+      await worker.terminate();
+    }
+  };
+
+
+  const handleDocumentUpload = async event => {
+
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+    const extension = file.name.toLowerCase().split('.').pop();
+    const allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(extension)) {
+      setMessage('Please upload only PDF, JPG or PNG files.');
+      event.target.value = '';
+      return;
+    }
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setMessage('File is too large. Please choose a file under 10 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    setUploadedFile(file);
+    setOcrError('');
+    setOcrBusy(true);
+    setExtractedData({ fields: { name: 'Reading document…', income: 'Reading document…' }, rawText: '', progress: 0 });
+
+    setDocumentPreviewUrl(previousUrl => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      return URL.createObjectURL(file);
+    });
+
+    setMessage('Document preview ready. Reading the uploaded document with OCR…');
+
+    try {
+      const result = await runDocumentOCR(file);
+      setExtractedData(result);
+      setMessage('OCR completed. The fields below were read from the uploaded document.');
+    } catch (error) {
+      setExtractedData(null);
+      setOcrError(error?.message || 'OCR could not read this document.');
+      setMessage('Document preview is ready, but OCR could not extract text.');
+    } finally {
+      setOcrBusy(false);
+    }
+  };
+
+  const clearDocument =
+    () => {
+
+      if (documentPreviewUrl) {
+        URL.revokeObjectURL(documentPreviewUrl);
+      }
+
+      setDocumentPreviewUrl('');
+      setUploadedFile(null);
+      setExtractedData(null);
+      setOcrError('');
+      setOcrBusy(false);
+      setMessage('Document removed.');
 
     };
+
 
   const createPeraSigner =
     () => {
@@ -2251,7 +2372,7 @@ export default function App() {
 
               <input
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
+                accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
                 onChange={
                   handleDocumentUpload
                 }
@@ -2282,61 +2403,84 @@ export default function App() {
 
             <div className="card-heading">
 
-              <Sparkles
-                size={18}
-              />
+              <div className="card-heading-title">
+                <Sparkles
+                  size={18}
+                />
 
-              <h3>
-                Extraction Preview
-              </h3>
+                <h3>
+                  Document Preview
+                </h3>
+              </div>
+
+              {uploadedFile && (
+                <button
+                  type="button"
+                  className="document-clear-button"
+                  onClick={clearDocument}
+                >
+                  Remove
+                </button>
+              )}
 
             </div>
 
 
-            {extractedData ? (
+            {uploadedFile && documentPreviewUrl ? (
 
-              <>
+              <div className="document-preview-wrap">
 
-                <div className="document-name">
+                <div className="document-preview">
 
-                  <strong>
-                    Document:
-                  </strong>
+                  {uploadedFile.type === 'application/pdf' ? (
 
-                  {extractedData.document}
+                    <iframe
+                      src={documentPreviewUrl}
+                      title={`Preview of ${uploadedFile.name}`}
+                      className="document-pdf-preview"
+                    />
+
+                  ) : (
+
+                    <img
+                      src={documentPreviewUrl}
+                      alt={`Preview of ${uploadedFile.name}`}
+                      className="document-image-preview"
+                    />
+
+                  )}
 
                 </div>
 
+                <div className="document-preview-meta">
 
-                {Object.entries(
-                  extractedData.fields
-                ).map(
-                  (
-                    [
-                      key,
-                      value
-                    ]
-                  ) => (
+                  <div>
+                    <strong>
+                      {uploadedFile.name}
+                    </strong>
 
-                    <div
-                      className="extracted-field"
-                      key={key}
-                    >
+                    <span>
+                      {uploadedFile.type === 'application/pdf'
+                        ? 'PDF document'
+                        : 'Image document'}
+                      {' • '}
+                      {(uploadedFile.size / 1024 / 1024).toFixed(2)}
+                      {' MB'}
+                    </span>
+                  </div>
 
-                      <span>
-                        {key}
-                      </span>
+                  <a
+                    href={documentPreviewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="document-open-button"
+                  >
+                    Open
+                  </a>
 
-                      <strong>
-                        {value}
-                      </strong>
+                </div>
 
-                    </div>
-
-                  )
-                )}
-
-              </>
+              </div>
 
             ) : (
 
@@ -2347,12 +2491,42 @@ export default function App() {
                 />
 
                 <p>
-                  Upload a document to
-                  preview extracted fields.
+                  Choose a PDF, JPG or PNG to see
+                  the document preview here.
                 </p>
 
               </div>
 
+            )}
+
+            {ocrBusy && extractedData && (
+              <div className="extraction-results">
+                <div className="extraction-label">Reading uploaded document • {extractedData.progress || 0}%</div>
+                <div className="extraction-progress"><span style={{ width: `${extractedData.progress || 0}%` }} /></div>
+              </div>
+            )}
+
+            {ocrError && (
+              <div className="prototype-disclaimer">OCR error: {ocrError}</div>
+            )}
+
+            {extractedData && !ocrBusy && !ocrError && (
+              <div className="extraction-results">
+                <div className="extraction-label">OCR extraction</div>
+                {Object.entries(extractedData.fields).map(([key, value]) => (
+                  <div className="extracted-field" key={key}>
+                    <span>{key}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+                <details className="ocr-text-details">
+                  <summary>View OCR text</summary>
+                  <pre>{extractedData.rawText || 'No readable text found.'}</pre>
+                </details>
+                <small className="prototype-disclaimer">
+                  These values are extracted from the uploaded document using browser-side OCR. If a field is not clearly present, it is shown as “Not detected” rather than fabricated.
+                </small>
+              </div>
             )}
 
           </div>
